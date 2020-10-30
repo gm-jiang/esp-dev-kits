@@ -43,6 +43,10 @@
     #endif
 #endif
 
+#include "connect.h"
+#include "usr_sntp.h"
+
+
 
 /*********************
  *      DEFINES
@@ -75,6 +79,8 @@ lcd_config_t lcd_config = {
 static void lv_tick_task(void *arg);
 static void guiTask(void *pvParameter);
 static void create_demo_application(void);
+static void task_test(void);
+static void calendar_test(void);
 static void esp_lcd_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_map);
 
 /**********************
@@ -82,6 +88,8 @@ static void esp_lcd_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_
  **********************/
 void app_main() {
 
+    wifi_start();
+    usr_sntp_start();
 
     /* If you want to use a task to create the graphic, you NEED to create a Pinned task
      * Otherwise there can be problem such as memory corruption and so on.
@@ -171,7 +179,10 @@ static void guiTask(void *pvParameter) {
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, LV_TICK_PERIOD_MS * 1000));
 
     /* Create the demo application */
-    create_demo_application();
+    /* Create the demo application */
+    //create_demo_application();
+    task_test();
+    calendar_test();
 
     while (1) {
         /* Delay 1 tick (assumes FreeRTOS tick is 10ms */
@@ -239,4 +250,75 @@ static void esp_lcd_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_
     lcd_set_index(area->x1, area->y1, area->x2, area->y2);
     lcd_write_data((uint8_t *)color_map, size * sizeof(uint16_t));
     lv_disp_flush_ready(drv);
+}
+
+
+static void calender_event_handler(lv_obj_t * obj, lv_event_t event)
+{
+    if(event == LV_EVENT_CLICKED) {
+        lv_calendar_date_t * date = lv_calendar_get_pressed_date(obj);
+        if(date) {
+            lv_calendar_set_today_date(obj, date);
+        }
+    }
+}
+
+static lv_obj_t *calendar;
+static void calendar_test(void)
+{
+    calendar = lv_calendar_create(lv_scr_act(), NULL);
+    lv_obj_set_size(calendar, 300, 220);
+    lv_obj_align(calendar, NULL, LV_ALIGN_IN_TOP_MID, 0, 0);
+    lv_obj_set_event_cb(calendar, calender_event_handler);
+
+    /*Set the today*/
+    lv_calendar_date_t today;
+    today.year = 2020;
+    today.month = 3;
+    today.day = 18;
+
+    lv_calendar_set_today_date(calendar, &today);
+    lv_calendar_set_showed_date(calendar, &today);
+
+    /*Highlight some days*/
+    static lv_calendar_date_t highlihted_days[8];       /*Only it's pointer will be saved so should be static*/
+    for (int i = 0; i < 8; i++) {
+        highlihted_days[i].year = 2020;
+        highlihted_days[i].month = 10;
+        highlihted_days[i].day = i+1;
+    }
+
+    lv_calendar_set_highlighted_dates(calendar, highlihted_days, 8);
+}
+
+#include <time.h>
+#include <sys/time.h>
+static lv_obj_t *task_label;
+static void my_task(lv_task_t * task)
+{
+    char buffer[64];
+    time_t timep;
+    struct tm *p;
+
+    static lv_calendar_date_t date;
+
+    time(&timep);
+    p = gmtime(&timep);
+    snprintf(buffer, sizeof(buffer), "%d-%d-%d %02d:%02d", 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, 8 + p->tm_hour, p->tm_min);
+
+    lv_label_set_text(task_label, buffer);
+    date.year = 1900 + p->tm_year;
+    date.month = 1 + p->tm_mon;
+    date.day = p->tm_mday;
+    lv_calendar_set_today_date(calendar, &date);
+    lv_calendar_set_showed_date(calendar, &date);
+}
+
+static void task_test(void){
+    static uint32_t user_data = 10;
+
+    task_label = lv_label_create(lv_scr_act(), NULL);
+    lv_obj_align(task_label, NULL, LV_ALIGN_IN_BOTTOM_MID, -40, 0);
+    lv_label_set_text(task_label, " ");
+    lv_task_create(my_task, 2*1000, LV_TASK_PRIO_MID, &user_data);
 }

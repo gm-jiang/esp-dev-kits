@@ -45,7 +45,7 @@
 
 #include "connect.h"
 #include "usr_sntp.h"
-
+#include "http_req.h"
 
 
 /*********************
@@ -95,6 +95,7 @@ void app_main() {
      * Otherwise there can be problem such as memory corruption and so on.
      * NOTE: When not using Wi-Fi nor Bluetooth you can pin the guiTask to core 0 */
     xTaskCreatePinnedToCore(guiTask, "gui", 4096*2, NULL, 0, NULL, 0);
+    xTaskCreatePinnedToCore(http_get_task, "http_get_task", 4096, NULL, 5, NULL, 0);
 }
 
 /* Creates a semaphore to handle concurrent call to lvgl stuff
@@ -293,6 +294,7 @@ static void calendar_test(void)
 
 #include <time.h>
 #include <sys/time.h>
+#include "http_req.h"
 static lv_obj_t *task_label;
 static void my_task(lv_task_t * task)
 {
@@ -304,7 +306,7 @@ static void my_task(lv_task_t * task)
 
     time(&timep);
     p = gmtime(&timep);
-    snprintf(buffer, sizeof(buffer), "%d-%d-%d %02d:%02d", 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, 8 + p->tm_hour, p->tm_min);
+    snprintf(buffer, sizeof(buffer), "%d-%d-%d %02d:%02d  %s*C", 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, 8 + p->tm_hour, p->tm_min, weathe.temperatur);
 
     lv_label_set_text(task_label, buffer);
     date.year = 1900 + p->tm_year;
@@ -318,7 +320,7 @@ static void task_test(void){
     static uint32_t user_data = 10;
 
     task_label = lv_label_create(lv_scr_act(), NULL);
-    lv_obj_align(task_label, NULL, LV_ALIGN_IN_BOTTOM_MID, -40, 0);
+    lv_obj_align(task_label, NULL, LV_ALIGN_IN_BOTTOM_MID, -60, 0);
     lv_label_set_text(task_label, " ");
     lv_task_create(my_task, 2*1000, LV_TASK_PRIO_MID, &user_data);
 }
